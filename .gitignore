@@ -3,3 +3,4 @@ vendor
 pscan_stats
 go.sum
 bin/*
+.idea

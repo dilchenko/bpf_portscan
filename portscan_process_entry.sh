@@ -14,7 +14,7 @@ bpftool_formatted_key="$(for h in ${registry_item_key}; do printf '%d ' ${h}; do
 is_ip_blocked=$(bpftool map lookup name pscan_ip_reg key ${bpftool_formatted_key} | jq -r '.value | .blocked')
 if [ "${is_ip_blocked}" == "1" ]; then
   echo "Skipping '${bpftool_formatted_key}' because it is blocked=${is_ip_blocked}"
-  continue
+  exit 0
 fi
 
 # fetch item timestamp, in nanoseconds

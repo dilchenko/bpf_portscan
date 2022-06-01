@@ -15,12 +15,14 @@ _term() {
   echo "Caught SIGTERM signal"
   _unload_xdp
   kill -TERM "$child" 2>/dev/null
+  kill -TERM "$cron_child" 2>/dev/null
 }
 
 _kill() {
   echo "Caught SIGKILL signal"
   _unload_xdp
   kill -KILL "$child" 2>/dev/null
+  kill -KILL "$cron_child" 2>/dev/null
 }
 
 trap _term SIGTERM
@@ -28,10 +30,13 @@ trap _kill SIGKILL
 
 # Improvement: load BPF maps from a file
 cd ${APP_ROOT}
-make xdp_unload NET_IF_NAME=${NET_IF_NAME} BPF_O_PATH=${BPF_O_PATH} # trap above does not work for some reason
+make xdp_load NET_IF_NAME=${NET_IF_NAME} BPF_O_PATH=${BPF_O_PATH} # trap above does not work for some reason
 
 # stats server
 ${APP_ROOT}/pscan_stats_linux &
-
 child=$!
-wait "$child"
+
+cron &
+cron_child=$!
+
+wait "$child" "$cron_child"
