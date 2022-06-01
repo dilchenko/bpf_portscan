@@ -28,14 +28,14 @@ linux_deps:
 	# sysctl -w net.ipv6.conf.all.disable_ipv6=0
 
 clone_xdp_tutorial:
-	{ [ ! -d "$(XDP_TUTORIAL_PATH)" ] && git clone https://github.com/xdp-project/xdp-tutorial.git $(XDP_TUTORIAL_PATH) } || true
+	[ ! -d "$(XDP_TUTORIAL_PATH)" ] && git clone https://github.com/xdp-project/xdp-tutorial.git $(XDP_TUTORIAL_PATH) || true
 
 test_if_create: clone_xdp_tutorial
 	sysctl -w net.ipv6.conf.all.disable_ipv6=0
-	cd $(XDP_TUTORIAL_PATH) && ./testenv.sh setup --legacy-ip --name $(NET_IF_NAME)
+	cd $(XDP_TUTORIAL_PATH)/testenv && ./testenv.sh setup --legacy-ip --name $(NET_IF_NAME)
 
 test_if_destroy: clone_xdp_tutorial
-	cd $(XDP_TUTORIAL_PATH) && ./testenv.sh teardown --legacy-ip --name $(NET_IF_NAME)
+	cd $(XDP_TUTORIAL_PATH)/testenv && ./testenv.sh teardown --legacy-ip --name $(NET_IF_NAME)
 
 all: $(XDP_OBJ)
 
@@ -95,7 +95,7 @@ xdp_unload:
 
 recompile: clean all
 
-test: recompile test_if_create run_test test_if_destroy
+test: xdp_unload test_if_destroy recompile test_if_create run_test test_if_destroy
 
 run_test:
 ifeq ($(UNAME),Darwin)
