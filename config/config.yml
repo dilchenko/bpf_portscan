@@ -1,0 +1,79 @@
+# enum xdp_action {
+#   XDP_ABORTED =                          0,
+#   XDP_DROP,                              1
+#   XDP_PASS,                              2
+#   XDP_TX,                                3
+#   XDP_REDIRECT,                          4
+# };
+# enum our_stats {
+#   STAT_CONN_NEW     = XDP_REDIRECT+1, // 5
+#   STAT_REGISTRY_SIZE,                 // 6
+# };
+
+---
+modules:
+  default:
+    metrics:
+    - name: xdp_portscan_packets_XDP_ABORTED
+      type: object
+      help: Number of packets passed with error from BPF
+      path: '{$[?(@.key == 0.0)]}'
+      labels:
+        bpf_program_name: xdp_port_scan_block
+        id: 0
+      values:
+        count: '{.value}'
+    - name: xdp_portscan_packets_XDP_DROP
+      type: object
+      help: Number of packets dropped in BPF
+      path: '{$[?(@.key == 1.0)]}'
+      labels:
+        bpf_program_name: xdp_port_scan_block
+        id: 1
+      values:
+        count: '{.value}'
+    - name: xdp_portscan_packets_XDP_PASS
+      type: object
+      help: Number of packets passed from BPF
+      path: '{$[?(@.key == 2.0)]}'
+      labels:
+        bpf_program_name: xdp_port_scan_block
+        id: 2
+      values:
+        count: '{.value}'
+    - name: xdp_portscan_packets_XDP_TX
+      type: object
+      help: Number of packets bounced out of BPF, should be 0
+      path: '{$[?(@.key == 3.0)]}'
+      labels:
+        bpf_program_name: xdp_port_scan_block
+        id: 3
+      values:
+        count: '{.value}'
+    - name: xdp_portscan_packets_XDP_REDIRECT
+      type: object
+      help: Number of packets redirected by BPF, should be 0
+      path: '{$[?(@.key == 4.0)]}'
+      labels:
+        bpf_program_name: xdp_port_scan_block
+        id: 4
+      values:
+        count: '{.value}'
+    - name: xdp_portscan_packets_CONN_NEW
+      type: object
+      help: Number of new TCP connections detected by BPF, syn=1 and ack=0
+      path: '{$[?(@.key == 5.0)]}'
+      labels:
+        bpf_program_name: xdp_port_scan_block
+        id: 5
+      values:
+        count: '{.value}'
+    - name: xdp_portscan_IP_REG_SIZE
+      type: object
+      help: Size of IP addresses registry, which contains IP addresses for all TCP connections encountered by BPF
+      path: '{$[?(@.key == 6.0)]}'
+      labels:
+        bpf_program_name: xdp_port_scan_block
+        id: 6
+      values:
+        count: '{.value}'
