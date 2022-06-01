@@ -140,10 +140,6 @@ u32 parse_tcp_dport(struct tcphdr *tcp_header, void *xdp_data_end) {
                       xdp_data_end, (void *)tcp_header + expected_tcp_offset);
         return stats_map_increment(XDP_ABORTED,1);
     }
-    // Increment new connection counter
-    if (tcp_header->syn == 1 && tcp_header->ack == 0) {
-        stats_map_increment(STAT_CONN_NEW,1);
-    }
     // Possible improvement/consideration: verify TCP/IP checksums? defeats the purpose due to performance hit?
     return ntohs(tcp_header->dest);
 }
@@ -207,6 +203,13 @@ int  xdp_port_scan_block_func(struct xdp_md *ctx)
         return XDP_ABORTED;
     bpf_log_trace("[DEBUG] xdp_port_scan_block: tcp_port:%u", tcp_dport);
 
+    // Established TCP connection, pass
+    if (tcp_header->syn == 1 && tcp_header->ack == 0) {
+        return stats_map_increment(XDP_PASS,1);
+    }
+
+    // New TCP connection, counter and evaluate
+    stats_map_increment(STAT_CONN_NEW,1);
     // Check this IP address is already in the registry
     struct IpInfo * exst_ip_inf = bpf_map_lookup_elem(&pscan_ip_reg, &ip_src_addr);
     bpf_log_trace("[DEBUG] xdp_port_scan_block: exst_ip_inf:%u", exst_ip_inf);
