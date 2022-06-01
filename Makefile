@@ -21,11 +21,16 @@ TEST_NETNS_NAME ?= $(NET_IF_NAME)
 DOCKER_DNS_OVERWRITE ?= --dns 192.168.1.1
 
 linux_deps:
+ifeq ($(UNAME),Darwin)
+	@echo "build this on linux, needs headers"
+	exit 1
+endif
 	apt-get install linux-tools-common linux-tools-generic linux-tools-`uname -r` \
-	linux-headers-generic linux-headers-`uname -r` libbpf libbpf-dev \
+	linux-headers-generic linux-headers-`uname -r` libbpf0 libbpf-dev \
 	clang make trace-cmd iproute2 tcpdump hping3 golang-go git
+	# If you want to play with `iptables -j LOG`, this is needed
 	# echo 1 > /proc/sys/net/netfilter/nf_log_all_netns
-	# sysctl -w net.ipv6.conf.all.disable_ipv6=0
+	sysctl -w net.ipv6.conf.all.disable_ipv6=0
 
 clone_xdp_tutorial:
 	[ ! -d "$(XDP_TUTORIAL_PATH)" ] && git clone https://github.com/xdp-project/xdp-tutorial.git $(XDP_TUTORIAL_PATH) || true
