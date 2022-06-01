@@ -5,6 +5,7 @@
 #include <uapi/linux/bpf.h>
 #include <uapi/linux/if_ether.h>
 #include <uapi/linux/ip.h>
+#include <uapi/linux/in.h>
 #include <uapi/linux/tcp.h>
 #include "bpf_helpers.h"
 
