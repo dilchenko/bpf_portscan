@@ -25,22 +25,34 @@ ifeq ($(UNAME),Darwin)
 	@echo "build this on linux, needs headers"
 	exit 1
 endif
-	apt-get install linux-tools-common linux-tools-generic linux-tools-`uname -r` \
+	apt-get install -y linux-tools-common linux-tools-generic linux-tools-`uname -r` \
 	linux-headers-generic linux-headers-`uname -r` libbpf0 libbpf-dev \
-	clang make trace-cmd iproute2 tcpdump hping3 golang-go git
+	clang llvm make trace-cmd iproute2 tcpdump hping3 golang-go
 	# If you want to play with `iptables -j LOG`, this is needed
 	# echo 1 > /proc/sys/net/netfilter/nf_log_all_netns
 	sysctl -w net.ipv6.conf.all.disable_ipv6=0
 
 clone_xdp_tutorial:
+ifeq ($(UNAME),Darwin)
+	@echo "run on linux, integration tests"
+	exit 1
+endif
 	[ ! -d "$(XDP_TUTORIAL_PATH)" ] && git clone https://github.com/xdp-project/xdp-tutorial.git $(XDP_TUTORIAL_PATH) || true
 
 test_if_create: clone_xdp_tutorial
+ifeq ($(UNAME),Darwin)
+	@echo "run on linux, integration tests"
+	exit 1
+endif
 	sysctl -w net.ipv6.conf.all.disable_ipv6=0
 	cd $(XDP_TUTORIAL_PATH)/testenv && ./testenv.sh setup --legacy-ip --name $(NET_IF_NAME)
 
 test_if_destroy: clone_xdp_tutorial
-	cd $(XDP_TUTORIAL_PATH)/testenv && ./testenv.sh teardown --legacy-ip --name $(NET_IF_NAME)
+ifeq ($(UNAME),Darwin)
+	@echo "run on linux, integration tests"
+	exit 1
+endif
+	cd $(XDP_TUTORIAL_PATH)/testenv && ./testenv.sh teardown --legacy-ip --name $(NET_IF_NAME) || true
 
 all: $(XDP_OBJ)
 
@@ -96,7 +108,7 @@ xdp_load:
 	ip link set dev $(NET_IF_NAME) xdp obj $(BPF_O_PATH)/$(BPF_O_FILE) sec $(BPF_NAME) verbose
 
 xdp_unload:
-	ip link set dev $(NET_IF_NAME) xdp off
+	ip link set dev $(NET_IF_NAME) xdp off || true
 
 recompile: clean all
 
@@ -109,7 +121,7 @@ ifeq ($(UNAME),Darwin)
 endif
 	go test -v test/main_test.go
 
-docker_build: clean all pscan_stats
+docker_build: clean all pscan_stats test
 	docker build ./ -t bpf_portscan:latest --progress=plain --network=host
 
 # Possible improvement: narrower capabilities
@@ -122,8 +134,8 @@ docker_run:
 		bpf_portscan:latest
 
 docker_stop:
-	docker stop `docker ps -q --filter ancestor=bpf_portscan:latest`
+	docker stop `docker ps -q --filter ancestor=bpf_portscan:latest | head -1`
 	$(MAKE) docker_log
 
 docker_log:
-	docker logs --tail=5 `docker ps -aq --filter ancestor=bpf_portscan:latest`
+	docker logs --tail=5 `docker ps -aq --filter ancestor=bpf_portscan:latest | head -1`

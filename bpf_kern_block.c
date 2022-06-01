@@ -158,12 +158,12 @@ int  xdp_port_scan_block_func(struct xdp_md *ctx)
     }
 
     // Check if we are already tracking max number of IP addrs in the registry; ABORT if we are
-    // Possible improvement/consideration: instead of ABORT (==PASS), should we DROP like conntrack?
+    // Possible improvement/consideration: instead of PASS, should we ABORT (and thus block) like conntrack?
     u64 ip_reg_size = ip_registry_size();
     if (ip_reg_size == IP_ADDR_MAP_SIZE) {
         bpf_log_trace("[ERROR] xdp_port_scan_block: tracking %u IP addresses which is > than max allowed %u", \
                         ip_reg_size, IP_ADDR_MAP_SIZE);
-        return stats_map_increment(XDP_ABORTED,1);
+        return stats_map_increment(XDP_PASS,1);
     }
 
     // Get timestamp as close to the first log message
@@ -189,7 +189,7 @@ int  xdp_port_scan_block_func(struct xdp_md *ctx)
     if (!(ethernet_proto == ETH_P_IP)) {
         // Possible improvement: hide this behind macro, it can be both useful and very chatty
         // bpf_log_trace("[DEBUG] xdp_port_scan_block: cannot handle proto:0x%x", ethernet_proto);
-        return stats_map_increment(XDP_ABORTED,1);
+        return stats_map_increment(XDP_PASS,1);
     }
     bpf_log_trace("[DEBUG] xdp_port_scan_block: handling IPv4 proto proto:0x%x", ETH_P_IP);
 
