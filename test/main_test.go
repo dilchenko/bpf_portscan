@@ -52,10 +52,10 @@ func xdpUnload() error {
 
 func xdpMakeTarget(target string) error {
 	var err error
-	//var out []byte
+	var out []byte
 	cmd := exec.Command("make", target)
 	cmd.Dir = "../"
-	_, err = cmd.CombinedOutput()
+	out, err = cmd.CombinedOutput()
 	if err != nil {
 	    fmt.Printf("make %s combined output:\n%s\n", target, out)
 	}
