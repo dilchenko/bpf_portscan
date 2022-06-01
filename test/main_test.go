@@ -56,7 +56,9 @@ func xdpMakeTarget(target string) error {
 	cmd := exec.Command("make", target)
 	cmd.Dir = "../"
 	_, err = cmd.CombinedOutput()
-	//fmt.Printf("make %s combined output:\n%s\n", target, out)
+	if err != nil {
+	    fmt.Printf("make %s combined output:\n%s\n", target, out)
+	}
 	return err
 }
 
