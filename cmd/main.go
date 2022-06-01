@@ -11,6 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Heavily based on github.com/prometheus-community/json_exporter
+
 package cmd
 
 import (
@@ -110,12 +112,6 @@ func probeHandler(w http.ResponseWriter, r *http.Request, logger log.Logger, con
 	jsonMetricCollector := exporter.JSONMetricCollector{JSONMetrics: metrics}
 	jsonMetricCollector.Logger = logger
 
-	/* target := r.URL.Query().Get("target")
-	if target == "" {
-		http.Error(w, "Target parameter is missing", http.StatusBadRequest)
-		return
-	}*/
-
 	data, err := dumpBPFMap(*bpfMapName, logger)
 	if err != nil {
 		http.Error(w, "Failed to fetch JSON. ERROR: "+err.Error(), http.StatusServiceUnavailable)
@@ -133,33 +129,6 @@ func dumpBPFMap(mapName string, logger log.Logger) ([]byte, error) {
 	/* Shortcut: kernel presents the BTFied maps contents in a JSON format through `bpftool`
 	   I briefly tried various libbpf / ebpf etc. golang libs, but all seem to be non-trivial and fail
 	   in non-obvious ways while loading the bpf module object. Thus, fallback to exec `bpftool` */
-	/*	fakeJson := `
-		{
-		    "counter": 1234,
-		    "values": [
-		        {
-		            "id": "id-A",
-		            "count": 1,
-		            "some_boolean": true,
-		            "state": "ACTIVE"
-		        },
-		        {
-		            "id": "id-B",
-		            "count": 2,
-		            "some_boolean": true,
-		            "state": "INACTIVE"
-		        },
-		        {
-		            "id": "id-C",
-		            "count": 3,
-		            "some_boolean": false,
-		            "state": "ACTIVE"
-		        }
-		    ],
-		    "location": "mars"
-		}`
-
-	return []byte(fakeJson), nil */
 	bpftoolCmd := "/usr/sbin/bpftool"
 	bpfToolArgs := []string{"map", "dump", "name", *bpfMapName}
 	level.Info(logger).Log("msg", "bpftool command", "command", bpftoolCmd)
@@ -171,20 +140,4 @@ func dumpBPFMap(mapName string, logger log.Logger) ([]byte, error) {
 	}
 	level.Info(logger).Log("msg", "bpftool output was", "stdout+stderr", statsJson) //TODO: debug logging
 	return statsJson, err
-	/*
-		type pscanStat struct {
-			Key   uint
-			Value uint
-		}
-
-		var stats []pscanStat
-		err = json.Unmarshal(statsJson, &stats)
-		if err != nil {
-
-		}
-		statsPretty := fmt.Sprintf("%+v", stats)
-		level.Info(logger).Log("msg", "Parsed pscan stats", "stats", statsPretty) //TODO: debug logging
-		return stats, err
-	*/
-
 }
