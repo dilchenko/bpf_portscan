@@ -237,6 +237,8 @@ int  xdp_port_scan_block_func(struct xdp_md *ctx)
         }
         bpf_log_trace("[DEBUG] xdp_port_scan_block: ports:[%u,%u,%u]",
                       exst_ip_inf->port1, exst_ip_inf->port2, exst_ip_inf->port3);
+        // Improvement: what we really need here is per-cpu hashmap for registry
+        // and a bit of math that would check that .port1-3 are present on each CPU
         // Lock the existing IP info element in the hash table
         bpf_spin_lock(&exst_ip_inf->bpf_lock);
         // "Main state machine" - update port timestamps and/or block if encountered 3 distinct ports

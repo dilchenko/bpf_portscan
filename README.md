@@ -51,8 +51,10 @@ Since we need access to BPF maps, host IP net namespace, etc., running docker co
 Docker container loads BFP into XDP on the host system. It also attaches it to an interface on the host system,
 `veth-pscan-test` by default.
 
-Invoke `sudo make docker_run` on a linux host to run the container. To override the interface name that it attaches to,
-pass `NET_IF_NAME` to the `make` command (e.g. `make docker_run NET_IF_NAME=eth0`).
+Invoke `sudo make docker_run` on a linux host to run the container. 
+
+To override the interface name that it attaches to, pass `NET_IF_NAME` to the `make` command (e.g. `make docker_run NET_IF_NAME=eth0`).  **WARNING**: attaching on a real interface could lock you out of the host if you are SSHed via the same network interface.  
+
 
 Docker container exposes custom prometheus endpoint via `:7979`. Once the container is running, run `curl "http://localhost:7979/probe?module=default"` to access prometheus endpoint.
 
