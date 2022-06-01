@@ -129,6 +129,11 @@ u32 parse_ip_src_addr(struct iphdr *ip_header, void *xdp_data_end) {
                       xdp_data_end, (void *) ip_header + expected_ip_offset);
         return stats_map_increment(XDP_ABORTED, 1);
     }
+    // Only handle TCP protocol for now
+    // Possible improvement: handle UDP, other protocols?
+    if (!(ip_header->protocol == IPPROTO_TCP)) {
+        return stats_map_increment(XDP_PASS,1);
+    }
     return ip_header->saddr;
 }
 
@@ -144,7 +149,7 @@ u32 parse_tcp_dport(struct tcphdr *tcp_header, void *xdp_data_end) {
     
     // Established TCP connection, pass
     // this code needs to live next to above `if` that verifies `tcp_header`, otherwise static analysis will complain
-    if (tcp_header->syn == 1 && tcp_header->ack == 0) {
+    if (!(tcp_header->syn == 1 && tcp_header->ack == 0)) {
         return stats_map_increment(XDP_PASS,1);
     }
 
