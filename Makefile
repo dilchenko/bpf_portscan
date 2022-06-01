@@ -95,7 +95,14 @@ xdp_unload:
 
 recompile: clean all
 
-test: test_if_create unload recompile load test_if_destroy
+test: recompile test_if_create run_test test_if_destroy
+
+run_test:
+ifeq ($(UNAME),Darwin)
+	@echo "run on linux, integration tests"
+	exit 1
+endif
+	go test -v test/main_test.go
 
 docker_build: clean all pscan_stats
 	docker build ./ -t bpf_portscan:latest --progress=plain --network=host
