@@ -112,49 +112,48 @@ u64 ip_registry_size() {
 
 // Possible improvement: abstract offset checker into a function - kernel BPF verifier seems to be unhappy about that
 static __always_inline
-u16 parse_ethernet_proto(struct ethhdr *ethernet_header, void *xdp_data_end) {
+u16 parse_ethernet_proto(struct ethhdr *ethernet_header, void *xdp_data_end, u16 *ethernet_proto) {
     u64 expected_eth_offset = sizeof(*ethernet_header);
     if ( (void *)ethernet_header + expected_eth_offset > xdp_data_end) {
         bpf_log_trace("[ERROR] xdp_port_scan_block: ETH header wrong size: xdp_data_end:%lu expected_end:%lu", \
                         xdp_data_end, (void *)ethernet_header + expected_eth_offset);
-        return stats_map_increment(XDP_ABORTED,1);
+        return 1;
     };
-    return ntohs(ethernet_header->h_proto);
+    *ethernet_proto = ntohs(ethernet_header->h_proto);
+    return 0;
 }
 
 static __always_inline
-u32 parse_ip_src_addr(struct iphdr *ip_header, void *xdp_data_end) {
+u32 parse_ip_header(struct iphdr *ip_header, void *xdp_data_end, u8 *ip_proto, u32 *ip_src_addr) {
     u64 expected_ip_offset = sizeof(*ip_header);
     if ((void *) ip_header + expected_ip_offset > xdp_data_end) {
         bpf_log_trace("[ERROR] xdp_port_scan_block: IP header wrong size: xdp_data_end:%lu expected_end:%lu", \
                       xdp_data_end, (void *) ip_header + expected_ip_offset);
-        return stats_map_increment(XDP_ABORTED, 1);
+        return 1;
     }
-    // Only handle TCP protocol for now
-    // Possible improvement: handle UDP, other protocols?
-    if (!(ip_header->protocol == IPPROTO_TCP)) {
-        return stats_map_increment(XDP_PASS,1);
-    }
-    return ip_header->saddr;
+    *ip_proto = ip_header->protocol;
+    *ip_src_addr = ip_header->saddr;
+    return 0;
 }
 
 static __always_inline
-u32 parse_tcp_dport(struct tcphdr *tcp_header, void *xdp_data_end) {
+u32 parse_tcp_dport(struct tcphdr *tcp_header, void *xdp_data_end, u32 *tcp_dport, u8 *new_conn) {
     u64 expected_tcp_offset = sizeof(*tcp_header);
     if ( (void *)tcp_header + expected_tcp_offset > xdp_data_end) {
         bpf_log_trace("[ERROR] xdp_port_scan_block: TCPv4 header wrong size: xdp_data_end:%lu expected_end:%lu",
                       xdp_data_end, (void *)tcp_header + expected_tcp_offset);
-        return stats_map_increment(XDP_ABORTED,1);
+        return 1;
     }
     // Possible improvement/consideration: verify TCP/IP checksums? defeats the purpose due to performance hit?
     
     // Established TCP connection, pass
     // this code needs to live next to above `if` that verifies `tcp_header`, otherwise static analysis will complain
-    if (!(tcp_header->syn == 1 && tcp_header->ack == 0)) {
-        return stats_map_increment(XDP_PASS,1);
+    *new_conn = 0;
+    if (tcp_header->syn == 1 && tcp_header->ack == 0) {
+        *new_conn = 1;
     }
-
-    return ntohs(tcp_header->dest);
+    *tcp_dport = ntohs(tcp_header->dest);
+    return 0;
 }
 
 SEC("xdp_port_scan_block")
@@ -177,16 +176,19 @@ int  xdp_port_scan_block_func(struct xdp_md *ctx)
 
     // Get timestamp as close to the first log message
     u64 packet_timestamp = bpf_ktime_get_ns();
+    u8 err;
 
     // Obtain essential bits from the context
     void *xdp_data_end = (void *)(long)ctx->data_end;
     void *xdp_data     = (void *)(long)ctx->data;
 
     // Parse level 2 header, get Ethernet protocol
+    u16 ethernet_proto;
     struct ethhdr *ethernet_header = xdp_data;
-    u16 ethernet_proto = parse_ethernet_proto(ethernet_header, xdp_data_end);
-    if (ethernet_proto == XDP_ABORTED)
-        return XDP_ABORTED;
+    err = parse_ethernet_proto(ethernet_header, xdp_data_end, &ethernet_proto);
+    if (err) {
+        return stats_map_increment(XDP_ABORTED,1);
+    }
     bpf_log_trace("[DEBUG] xdp_port_scan_block: eth_type:0x%x", ethernet_proto);
     /* Shortcut: do not handle VLAN encapsulated packets for now
      * Possible improvement: decapsulate VLAN packets.
@@ -194,7 +196,6 @@ int  xdp_port_scan_block_func(struct xdp_md *ctx)
      * Shortcut: only handle IPv4 for now
      * Possible improvement: handle IPv6 - is it used in our network?
      */
-
     if (!(ethernet_proto == ETH_P_IP)) {
         // Possible improvement: hide this behind macro, it can be both useful and very chatty
         // bpf_log_trace("[DEBUG] xdp_port_scan_block: cannot handle proto:0x%x", ethernet_proto);
@@ -202,21 +203,34 @@ int  xdp_port_scan_block_func(struct xdp_md *ctx)
     }
     bpf_log_trace("[DEBUG] xdp_port_scan_block: handling IPv4 proto proto:0x%x", ETH_P_IP);
 
-    // Extract IPv4 source address from the IPv4 header
+    // Parse IPv4 protocol
+    u8 ip_proto;
+    u32 ip_src_addr;
     struct iphdr *ip_header = (void *)ethernet_header + sizeof(*ethernet_header);
-    u32 ip_src_addr = parse_ip_src_addr(ip_header, xdp_data_end);
-    if (ip_src_addr == XDP_ABORTED)
-        return XDP_ABORTED;
-    bpf_log_trace("[DEBUG] xdp_port_scan_block: IPv4 source address:0x%x int%u %pI4", ip_src_addr, ip_src_addr, &ip_src_addr);
+    err = parse_ip_header(ip_header, xdp_data_end, &ip_proto, &ip_src_addr);
+    if (err) {
+        return stats_map_increment(XDP_ABORTED,1);
+    }
+    // Only handle TCP protocol for now; Possible improvement: handle UDP, other protocols?
+    if (!(ip_proto == IPPROTO_TCP)) {
+        return stats_map_increment(XDP_PASS,1);
+    }
+    bpf_log_trace("[DEBUG] xdp_port_scan_block: IPv4 source address:%pI4", &ip_src_addr);
 
     // Parse TCPv4 header and obtain destination address
+    u32 tcp_dport;
+    u8 new_conn;
     struct tcphdr *tcp_header = (void *)ip_header + sizeof(*ip_header);
-    u32 tcp_dport = parse_tcp_dport(tcp_header, xdp_data_end);
-    if (tcp_dport==XDP_ABORTED)
-        return XDP_ABORTED;
+    err = parse_tcp_dport(tcp_header, xdp_data_end, &tcp_dport, &new_conn);
+    if (err) {
+        return stats_map_increment(XDP_ABORTED,1);
+    }
     bpf_log_trace("[DEBUG] xdp_port_scan_block: tcp_port:%u", tcp_dport);
+    if (!new_conn) {
+        return stats_map_increment(XDP_PASS,1);
+    }
 
-    // New TCP connection, counter and evaluate
+    // New TCP connection, count and evaluate
     stats_map_increment(STAT_CONN_NEW,1);
     // Check this IP address is already in the registry
     struct IpInfo * exst_ip_inf = bpf_map_lookup_elem(&pscan_ip_reg, &ip_src_addr);
