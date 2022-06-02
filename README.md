@@ -88,7 +88,7 @@ bpftool map dump name pscan_stats
 Unblock an IP by removing the key from the `pscan_ip_reg`:
 
 ```shell
-# bpftool map dump name pscan_ip_reg -p
+$ bpftool map dump name pscan_ip_reg -p
 [{
         "key": ["0x0a","0xd3","0x37","0x04"   <<-----------------------
         ],
@@ -112,7 +112,20 @@ Unblock an IP by removing the key from the `pscan_ip_reg`:
 ```
 
 ```shell
-bpftool map delete name pscan_ip_reg key hex 0a d3 37 04
+$ bpftool map delete name pscan_ip_reg key hex 0a d3 37 04
+```
+
+Human-ish quick&ditry way to dump the IP registry:
+
+```shell
+$ cat convert_ip
+for h in ${1}; do printf '%d ' ${h}; done | sed 's/ $/ | /' | sed 's/ /./g' | sed -E 's/(^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1 | /'
+echo $@
+$ echo; echo 'ip | hex | blocked | port1 | port2 | port3'; bpftool map dump name pscan_ip_reg -p | jq -r '.[] | [ (.key | join(" ")), .formatted.value.blocked, .formatted.value.port1, .formatted.value.port2, .formatted.value.port3  ] | join(" ")' | xargs -n1 -d'\n' ./convert_ip
+
+ip | hex | blocked | port1 | port2 | port3
+2.0.0.0 | 0x02 0x00 0x00 0x00 0 2 0 0
+10.211.55.2 | 0x0a 0xd3 0x37 0x02 0 2 0 0
 ```
 
 BTF requires kernel support, check via `grep CONFIG_DEBUG_INFO_BTF_MODULES /boot/config-$(uname -r)`.
