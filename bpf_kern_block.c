@@ -112,7 +112,7 @@ u64 ip_registry_size() {
 
 // Possible improvement: abstract offset checker into a function - kernel BPF verifier seems to be unhappy about that
 static __always_inline
-u16 parse_ethernet_proto(struct ethhdr *ethernet_header, void *xdp_data_end, u16 *ethernet_proto) {
+u8 parse_ethernet_proto(struct ethhdr *ethernet_header, void *xdp_data_end, u16 *ethernet_proto) {
     u64 expected_eth_offset = sizeof(*ethernet_header);
     if ( (void *)ethernet_header + expected_eth_offset > xdp_data_end) {
         bpf_log_trace("[ERROR] xdp_port_scan_block: ETH header wrong size: xdp_data_end:%lu expected_end:%lu", \
@@ -124,7 +124,7 @@ u16 parse_ethernet_proto(struct ethhdr *ethernet_header, void *xdp_data_end, u16
 }
 
 static __always_inline
-u32 parse_ip_header(struct iphdr *ip_header, void *xdp_data_end, u8 *ip_proto, u32 *ip_src_addr) {
+u8 parse_ip_header(struct iphdr *ip_header, void *xdp_data_end, u8 *ip_proto, u32 *ip_src_addr) {
     u64 expected_ip_offset = sizeof(*ip_header);
     if ((void *) ip_header + expected_ip_offset > xdp_data_end) {
         bpf_log_trace("[ERROR] xdp_port_scan_block: IP header wrong size: xdp_data_end:%lu expected_end:%lu", \
@@ -137,7 +137,7 @@ u32 parse_ip_header(struct iphdr *ip_header, void *xdp_data_end, u8 *ip_proto, u
 }
 
 static __always_inline
-u32 parse_tcp_dport(struct tcphdr *tcp_header, void *xdp_data_end, u32 *tcp_dport, u8 *new_conn) {
+u8 parse_tcp_dport(struct tcphdr *tcp_header, void *xdp_data_end, u32 *tcp_dport, u8 *new_conn) {
     u64 expected_tcp_offset = sizeof(*tcp_header);
     if ( (void *)tcp_header + expected_tcp_offset > xdp_data_end) {
         bpf_log_trace("[ERROR] xdp_port_scan_block: TCPv4 header wrong size: xdp_data_end:%lu expected_end:%lu",
@@ -197,7 +197,7 @@ int  xdp_port_scan_block_func(struct xdp_md *ctx)
      * Possible improvement: handle IPv6 - is it used in our network?
      */
     if (!(ethernet_proto == ETH_P_IP)) {
-        // Possible improvement: hide this behind macro, it can be both useful and very chatty
+        // Possible improvement: hide the logging behind macro, it can be both useful and very chatty
         // bpf_log_trace("[DEBUG] xdp_port_scan_block: cannot handle proto:0x%x", ethernet_proto);
         return stats_map_increment(XDP_PASS,1);
     }
@@ -262,7 +262,7 @@ int  xdp_port_scan_block_func(struct xdp_md *ctx)
         }
         bpf_log_trace("[DEBUG] xdp_port_scan_block: ports:[%u,%u,%u]",
                       exst_ip_inf->port1, exst_ip_inf->port2, exst_ip_inf->port3);
-        // Improvement: what we really need here is per-cpu hashmap for registry
+        // Improvement: what we really want here is per-cpu hashmap for registry
         // and a bit of math that would check that .port1-3 are present on each CPU
         // Lock the existing IP info element in the hash table
         bpf_spin_lock(&exst_ip_inf->bpf_lock);
